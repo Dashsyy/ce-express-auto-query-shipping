@@ -45,6 +45,10 @@ func (c *Client) SetWebhook(webhookURL string) error {
 	return c.post("setWebhook", body)
 }
 
+func (c *Client) DeleteWebhook() error {
+	return c.post("deleteWebhook", struct{}{})
+}
+
 func (c *Client) SendMessage(chatID interface{}, text, parseMode string) error {
 	body := SendMessageReq{
 		ChatID:    chatID,
