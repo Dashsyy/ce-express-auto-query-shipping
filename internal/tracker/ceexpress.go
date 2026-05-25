@@ -5,8 +5,49 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sync"
 	"time"
 )
+
+// In-memory cache for CE Express responses
+var (
+	cache     sync.Map // map[string]cacheEntry
+	cacheTTL  = 60 * time.Second
+)
+
+type cacheEntry struct {
+	result    *TrackingResult
+	cachedAt  time.Time
+}
+
+// SetCacheTTL allows overriding the default cache duration.
+func SetCacheTTL(seconds int) {
+	if seconds > 0 {
+		cacheTTL = time.Duration(seconds) * time.Second
+	}
+}
+
+// getCached returns cached result if still fresh, otherwise nil.
+func getCached(code string) *TrackingResult {
+	v, ok := cache.Load(code)
+	if !ok {
+		return nil
+	}
+	entry := v.(cacheEntry)
+	if time.Since(entry.cachedAt) > cacheTTL {
+		cache.Delete(code)
+		return nil
+	}
+	return entry.result
+}
+
+// setCached stores the result with current timestamp.
+func setCached(code string, result *TrackingResult) {
+	cache.Store(code, cacheEntry{
+		result:   result,
+		cachedAt: time.Now(),
+	})
+}
 
 type ShipmentData struct {
 	Success bool `json:"success"`
@@ -67,11 +108,17 @@ var shipmentStatusLabels = map[string]string{
 }
 
 func Fetch(code string) (*TrackingResult, error) {
+	// Check cache first
+	if cached := getCached(code); cached != nil {
+		log.Printf("[CE_EXPRESS] ⚡ cache HIT code=%s (no API call)", code)
+		return cached, nil
+	}
+
 	start := time.Now()
 	ts := start.UnixMilli()
 	url := fmt.Sprintf("https://cp.cambodianexpress.com/api/public/shipment/track?code=%s&_=%d", code, ts)
 
-	log.Printf("[CE_EXPRESS] → GET track code=%s", code)
+	log.Printf("[CE_EXPRESS] → GET track code=%s (cache miss)", code)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -141,7 +188,15 @@ func Fetch(code string) (*TrackingResult, error) {
 		}
 	}
 
+	// Cache the successful response
+	setCached(code, result)
+
 	return result, nil
+}
+
+// InvalidateCache removes a code from the cache (useful when worker detects changes).
+func InvalidateCache(code string) {
+	cache.Delete(code)
 }
 
 func isDelivered(status string, events []struct {
