@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -50,8 +51,9 @@ func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
 
 	if update.Message != nil {
 		if update.Message.IsCommand() {
-			log.Printf("[USER] chat=%s user=@%s cmd=/%s", chatIDStr, username, update.Message.Command())
-			h.handleCommand(update.Message.Command(), chatIDStr)
+			args := update.Message.CommandArguments()
+			log.Printf("[USER] chat=%s user=@%s cmd=/%s args=%q", chatIDStr, username, update.Message.Command(), args)
+			h.handleCommand(update.Message.Command(), args, chatIDStr)
 		} else if update.Message.Text != "" {
 			log.Printf("[USER] chat=%s user=@%s text=%q", chatIDStr, username, update.Message.Text)
 			h.handleText(update.Message.Text, chatIDStr)
@@ -64,14 +66,20 @@ func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func (h *WebhookHandler) handleCommand(command, chatID string) {
+func (h *WebhookHandler) handleCommand(command, args, chatID string) {
 	switch command {
 	case "start":
 		h.handleStart(chatID)
-	case "list":
+	case "list", "show":
 		h.handleList(chatID)
 	case "delete", "remove":
-		h.handleDelete(chatID)
+		if args != "" {
+			// Direct delete: /delete TBKH000649682
+			h.deleteCode(chatID, strings.ToUpper(strings.TrimSpace(args)))
+		} else {
+			// Button-based delete
+			h.handleDelete(chatID)
+		}
 	case "help":
 		h.handleHelp(chatID)
 	default:
@@ -84,7 +92,8 @@ func (h *WebhookHandler) handleHelp(chatID string) {
 		"━━━━━━━━━━━━━━━━\n" +
 		"/start — Show your tracked codes\n" +
 		"/list — List all tracked codes\n" +
-		"/delete — Remove tracked codes\n" +
+		"/delete — Tap-to-delete buttons\n" +
+		"/delete <code>CODE</code> — Delete a specific code\n" +
 		"/help — Show this help\n\n" +
 		"<b>📦 Adding codes</b>\n" +
 		"Just send any tracking code as a message (e.g. <code>TBKH000649682</code>)"
