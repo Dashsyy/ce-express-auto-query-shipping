@@ -36,9 +36,9 @@ func TrackingMessage(code string, result *tracker.TrackingResult, prevState *sta
 		b.WriteString(fmt.Sprintf("📦 <code>%s</code>\n", code))
 	}
 
-	// Destination & weight (compact line)
+	// Destination & weight (compact line) — address is masked for privacy
 	if result.Destination != "" {
-		dest := cleanText(result.Destination)
+		dest := maskAddress(cleanText(result.Destination))
 		b.WriteString(fmt.Sprintf("📍 %s\n", dest))
 	}
 	if result.Weight > 0 {
@@ -74,6 +74,34 @@ func TrackingMessage(code string, result *tracker.TrackingResult, prevState *sta
 	}
 
 	return b.String()
+}
+
+// maskAddress hides specific location details (street, house number, building)
+// and keeps only the last 2-3 segments (district, city, country).
+// This protects user privacy on a public bot.
+func maskAddress(addr string) string {
+	parts := strings.Split(addr, ",")
+	// Trim whitespace from each part
+	for i, p := range parts {
+		parts[i] = strings.TrimSpace(p)
+	}
+
+	// Filter out empty parts
+	cleaned := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p != "" {
+			cleaned = append(cleaned, p)
+		}
+	}
+
+	if len(cleaned) <= 2 {
+		// Already short — return as-is
+		return strings.Join(cleaned, ", ")
+	}
+
+	// Keep only last 2 segments (typically city + country)
+	last := cleaned[len(cleaned)-2:]
+	return "…, " + strings.Join(last, ", ")
 }
 
 // formatAge converts duration to a friendly string like "23s" or "2m"
