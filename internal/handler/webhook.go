@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
 	"github.com/dashsyy/ce-tracker/internal/config"
+	"github.com/dashsyy/ce-tracker/internal/format"
 	"github.com/dashsyy/ce-tracker/internal/ratelimit"
 	"github.com/dashsyy/ce-tracker/internal/state"
 	"github.com/dashsyy/ce-tracker/internal/telegram"
@@ -116,7 +116,7 @@ func (h *WebhookHandler) handleText(code, chatID string) {
 		return
 	}
 
-	msg := buildTrackingMessage(code, result, false, nil, h.cfg.Version)
+	msg := format.TrackingMessage(code, result, nil)
 	h.tg.SendMessage(chatID, msg, "HTML")
 
 	// Update state
@@ -162,7 +162,7 @@ func (h *WebhookHandler) handleCallback(cb *tgbotapi.CallbackQuery, chatID strin
 		return
 	}
 
-	msg := buildTrackingMessage(code, result, false, nil, h.cfg.Version)
+	msg := format.TrackingMessage(code, result, nil)
 	h.tg.SendMessage(chatID, msg, "HTML")
 
 	// Update state
@@ -193,57 +193,6 @@ func buildCodesKeyboard(codes []string) [][]telegram.InlineKeyboardButton {
 		rows = append(rows, row)
 	}
 	return rows
-}
-
-func buildTrackingMessage(code string, result *tracker.TrackingResult, isAlert bool, prevState *state.CodeState, version string) string {
-	label := tracker.GetStatusLabel(result.ShipmentStatus)
-	var msg string
-
-	if isAlert && prevState != nil {
-		prevLabel := tracker.GetStatusLabel(prevState.ShipmentStatus)
-		msg = "🔔 <b>STATUS UPDATE!</b>\n"
-		msg += "Tracking: <code>" + code + "</code>\n"
-		msg += "Status changed: <b>" + prevLabel + "</b> → <b>" + label + "</b>\n"
-	} else {
-		if result.Delivered {
-			msg = "✅ <b>PACKAGE DELIVERED!</b>\n"
-		} else {
-			msg = "📦 <b>CE Express Tracker</b>\n"
-		}
-		msg += "Tracking: <code>" + code + "</code>\n"
-		msg += "Status: <b>" + label + "</b>\n"
-	}
-
-	if result.Destination != "" {
-		msg += "Destination: " + result.Destination + "\n"
-	}
-	if result.Weight > 0 {
-		msg += fmt.Sprintf("Weight: %.2f kg\n", result.Weight)
-	}
-
-	if len(result.Events) > 0 {
-		msg += "\n<b>Latest events:</b>\n"
-		start := len(result.Events) - 4
-		if start < 0 {
-			start = 0
-		}
-		for _, ev := range result.Events[start:] {
-			t := ev.Time
-			desc := ev.Description
-			shop := ev.Shop
-			if shop != "" {
-				msg += "  " + t + " [" + shop + "]: " + desc + "\n"
-			} else {
-				msg += "  " + t + ": " + desc + "\n"
-			}
-		}
-	}
-
-	if !result.Delivered && result.ShipmentStatus == "40" && result.CourierName != "" {
-		msg += "\nCourier: <b>" + result.CourierName + "</b>  📞 " + result.CourierMobile + "\n"
-	}
-
-	return msg
 }
 
 func contains(slice []string, item string) bool {

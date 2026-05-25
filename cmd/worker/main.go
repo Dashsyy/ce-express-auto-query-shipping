@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"time"
 
 	"github.com/dashsyy/ce-tracker/internal/config"
+	"github.com/dashsyy/ce-tracker/internal/format"
 	"github.com/dashsyy/ce-tracker/internal/state"
 	"github.com/dashsyy/ce-tracker/internal/telegram"
 	"github.com/dashsyy/ce-tracker/internal/tracker"
@@ -65,8 +65,8 @@ func pollAll(stateManager *state.Manager, tg *telegram.Client) {
 			if changed {
 				log.Printf("[%s] change detected — notifying chat %s", code, chatIDStr)
 
-				// Build alert message
-				msg := buildAlertMessage(code, result, &prev)
+				// Build alert message using shared formatter
+				msg := format.TrackingMessage(code, result, &prev)
 				if err := tg.SendMessage(chatIDStr, msg, "HTML"); err != nil {
 					log.Printf("[%s] failed to notify %s: %v", code, chatIDStr, err)
 				}
@@ -91,42 +91,3 @@ func pollAll(stateManager *state.Manager, tg *telegram.Client) {
 	log.Println("Background poll done")
 }
 
-func buildAlertMessage(code string, result *tracker.TrackingResult, prevState *state.CodeState) string {
-	prevLabel := tracker.GetStatusLabel(prevState.ShipmentStatus)
-	newLabel := tracker.GetStatusLabel(result.ShipmentStatus)
-
-	msg := "🔔 <b>STATUS UPDATE!</b>\n"
-	msg += fmt.Sprintf("Tracking: <code>%s</code>\n", code)
-	msg += fmt.Sprintf("Status changed: <b>%s</b> → <b>%s</b>\n", prevLabel, newLabel)
-
-	if result.Destination != "" {
-		msg += fmt.Sprintf("Destination: %s\n", result.Destination)
-	}
-	if result.Weight > 0 {
-		msg += fmt.Sprintf("Weight: %.2f kg\n", result.Weight)
-	}
-
-	if len(result.Events) > 0 {
-		msg += "\n<b>Latest events:</b>\n"
-		start := len(result.Events) - 4
-		if start < 0 {
-			start = 0
-		}
-		for _, ev := range result.Events[start:] {
-			t := ev.Time
-			desc := ev.Description
-			shop := ev.Shop
-			if shop != "" {
-				msg += fmt.Sprintf("  %s [%s]: %s\n", t, shop, desc)
-			} else {
-				msg += fmt.Sprintf("  %s: %s\n", t, desc)
-			}
-		}
-	}
-
-	if !result.Delivered && result.ShipmentStatus == "40" && result.CourierName != "" {
-		msg += fmt.Sprintf("\nCourier: <b>%s</b>  📞 %s\n", result.CourierName, result.CourierMobile)
-	}
-
-	return msg
-}
