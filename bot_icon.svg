@@ -1,0 +1,35 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Gradient background -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e5096;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3d7db8;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" fill="url(#bgGradient)"/>
+
+  <!-- Package box -->
+  <rect x="120" y="100" width="270" height="200" fill="#ffc832" stroke="#c89614" stroke-width="4" rx="8"/>
+
+  <!-- Package tape -->
+  <rect x="110" y="185" width="290" height="30" fill="#e8e8e8" stroke="#666" stroke-width="2"/>
+
+  <!-- Tape fold effect -->
+  <path d="M 120 185 L 130 175 L 390 175 L 380 185" fill="#d0d0d0"/>
+
+  <!-- Green checkmark (delivery confirmation) -->
+  <g transform="translate(330, 270)">
+    <!-- Checkmark circle background -->
+    <circle cx="0" cy="0" r="40" fill="#4caf50"/>
+    <!-- Checkmark -->
+    <path d="M -15 -5 L -5 8 L 15 -12" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Text -->
+  <text x="256" y="380" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="white" letter-spacing="2">CE TRACKER</text>
+
+  <!-- Telegram-style bottom accent -->
+  <rect x="0" y="480" width="512" height="32" fill="rgba(255,255,255,0.1)"/>
+</svg>
