@@ -134,11 +134,15 @@ func formatEventTime(raw string) string {
 	return t.Format("Jan 2, 15:04")
 }
 
-// cleanText strips weird CJK brackets and trims whitespace.
+// cleanText strips CJK brackets (replacing with space) and normalizes whitespace.
 func cleanText(s string) string {
-	s = strings.ReplaceAll(s, "【", "")
-	s = strings.ReplaceAll(s, "】", "")
-	s = strings.ReplaceAll(s, "  ", " ")
+	s = strings.ReplaceAll(s, "【", " ")
+	s = strings.ReplaceAll(s, "】", " ")
+	s = strings.ReplaceAll(s, ",", ", ")
+	// Collapse multiple spaces
+	for strings.Contains(s, "  ") {
+		s = strings.ReplaceAll(s, "  ", " ")
+	}
 	return strings.TrimSpace(s)
 }
 

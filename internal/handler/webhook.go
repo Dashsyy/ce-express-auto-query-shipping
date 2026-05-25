@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -64,9 +65,114 @@ func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
 }
 
 func (h *WebhookHandler) handleCommand(command, chatID string) {
-	if command == "start" {
+	switch command {
+	case "start":
 		h.handleStart(chatID)
+	case "list":
+		h.handleList(chatID)
+	case "delete", "remove":
+		h.handleDelete(chatID)
+	case "help":
+		h.handleHelp(chatID)
+	default:
+		h.tg.SendMessage(chatID, "❓ Unknown command. Try /help", "HTML")
 	}
+}
+
+func (h *WebhookHandler) handleHelp(chatID string) {
+	text := "<b>📚 Commands</b>\n" +
+		"━━━━━━━━━━━━━━━━\n" +
+		"/start — Show your tracked codes\n" +
+		"/list — List all tracked codes\n" +
+		"/delete — Remove tracked codes\n" +
+		"/help — Show this help\n\n" +
+		"<b>📦 Adding codes</b>\n" +
+		"Just send any tracking code as a message (e.g. <code>TBKH000649682</code>)"
+	h.tg.SendMessage(chatID, text, "HTML")
+}
+
+func (h *WebhookHandler) handleList(chatID string) {
+	appState, err := h.state.Load()
+	if err != nil {
+		log.Printf("Failed to load state: %v", err)
+		return
+	}
+	chat := h.state.GetChat(appState, chatID)
+
+	if len(chat.Codes) == 0 {
+		h.tg.SendMessage(chatID, "📭 No tracked codes yet. Send a tracking code to add one.", "HTML")
+		return
+	}
+
+	text := fmt.Sprintf("📋 <b>Tracked codes (%d/%d)</b>\n━━━━━━━━━━━━━━━━\n", len(chat.Codes), h.cfg.MaxCodesPerUser)
+	for _, code := range chat.Codes {
+		status := "?"
+		if cs, ok := chat.CodeStates[code]; ok {
+			status = tracker.GetStatusLabel(cs.ShipmentStatus)
+		}
+		text += fmt.Sprintf("• <code>%s</code> — %s\n", code, status)
+	}
+	h.tg.SendMessage(chatID, text, "HTML")
+}
+
+func (h *WebhookHandler) handleDelete(chatID string) {
+	appState, err := h.state.Load()
+	if err != nil {
+		log.Printf("Failed to load state: %v", err)
+		return
+	}
+	chat := h.state.GetChat(appState, chatID)
+
+	if len(chat.Codes) == 0 {
+		h.tg.SendMessage(chatID, "📭 No codes to delete.", "HTML")
+		return
+	}
+
+	keyboard := buildDeleteKeyboard(chat.Codes)
+	h.tg.SendMessageWithKeyboard(chatID, "🗑 <b>Tap a code to delete it:</b>", "HTML", keyboard)
+}
+
+func buildDeleteKeyboard(codes []string) [][]telegram.InlineKeyboardButton {
+	var rows [][]telegram.InlineKeyboardButton
+	for _, code := range codes {
+		rows = append(rows, []telegram.InlineKeyboardButton{
+			{Text: "🗑 " + code, CallbackData: "del:" + code},
+		})
+	}
+	return rows
+}
+
+func (h *WebhookHandler) deleteCode(chatID, code string) {
+	appState, err := h.state.Load()
+	if err != nil {
+		log.Printf("Failed to load state: %v", err)
+		return
+	}
+	chat := h.state.GetChat(appState, chatID)
+
+	// Remove code from slice
+	newCodes := make([]string, 0, len(chat.Codes))
+	found := false
+	for _, c := range chat.Codes {
+		if c == code {
+			found = true
+			continue
+		}
+		newCodes = append(newCodes, c)
+	}
+
+	if !found {
+		h.tg.SendMessage(chatID, fmt.Sprintf("❌ <code>%s</code> not found in your codes.", code), "HTML")
+		return
+	}
+
+	chat.Codes = newCodes
+	delete(chat.CodeStates, code)
+	h.state.SetChat(appState, chatID, chat)
+	h.state.Save(appState)
+
+	log.Printf("[USER] chat=%s deleted code=%s (remaining: %d)", chatID, code, len(newCodes))
+	h.tg.SendMessage(chatID, fmt.Sprintf("✅ Deleted <code>%s</code>. You now have %d/%d codes.", code, len(newCodes), h.cfg.MaxCodesPerUser), "HTML")
 }
 
 func (h *WebhookHandler) handleStart(chatID string) {
@@ -81,12 +187,13 @@ func (h *WebhookHandler) handleStart(chatID string) {
 
 	if len(chat.Codes) > 0 {
 		keyboard := buildCodesKeyboard(chat.Codes)
-		text := "👋 Welcome back!\n\nTap a previous code to re-check, or send a new tracking code:" + versionInfo
+		text := fmt.Sprintf("👋 Welcome back!\n\nYou have %d/%d codes.\nTap to re-check, or send a new code.\n\n<i>Commands:</i> /list /delete /help", len(chat.Codes), h.cfg.MaxCodesPerUser) + versionInfo
 		h.tg.SendMessageWithKeyboard(chatID, text, "HTML", keyboard)
 	} else {
 		text := "👋 Welcome to <b>CE Express Tracker</b>!\n\n" +
 			"Send me a tracking code (e.g. <code>TBKH000649682</code>) and I'll check its " +
-			"status and alert you automatically whenever it changes." + versionInfo
+			"status and alert you automatically whenever it changes.\n\n" +
+			"<i>Commands:</i> /list /delete /help" + versionInfo
 		h.tg.SendMessage(chatID, text, "HTML")
 	}
 }
@@ -146,6 +253,13 @@ func (h *WebhookHandler) handleText(code, chatID string) {
 }
 
 func (h *WebhookHandler) handleCallback(cb *tgbotapi.CallbackQuery, chatID string) {
+	// Handle delete button
+	if len(cb.Data) > 4 && cb.Data[:4] == "del:" {
+		code := cb.Data[4:]
+		h.deleteCode(chatID, code)
+		return
+	}
+
 	if len(cb.Data) < 6 || cb.Data[:6] != "track:" {
 		return
 	}
