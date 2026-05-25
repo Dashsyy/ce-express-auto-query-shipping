@@ -33,20 +33,30 @@ func NewWebhookHandler(cfg *config.Config, tg *telegram.Client, stateManager *st
 func (h *WebhookHandler) HandleWebhook(c *gin.Context) {
 	var update tgbotapi.Update
 	if err := c.BindJSON(&update); err != nil {
-		log.Printf("Failed to parse webhook: %v", err)
+		log.Printf("[WEBHOOK] ✗ parse error: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request"})
 		return
 	}
 
 	chatIDStr := strconv.FormatInt(update.FromChat().ID, 10)
+	username := ""
+	if update.SentFrom() != nil {
+		username = update.SentFrom().UserName
+		if username == "" {
+			username = update.SentFrom().FirstName
+		}
+	}
 
 	if update.Message != nil {
 		if update.Message.IsCommand() {
+			log.Printf("[USER] chat=%s user=@%s cmd=/%s", chatIDStr, username, update.Message.Command())
 			h.handleCommand(update.Message.Command(), chatIDStr)
 		} else if update.Message.Text != "" {
+			log.Printf("[USER] chat=%s user=@%s text=%q", chatIDStr, username, update.Message.Text)
 			h.handleText(update.Message.Text, chatIDStr)
 		}
 	} else if update.CallbackQuery != nil {
+		log.Printf("[USER] chat=%s user=@%s button=%s", chatIDStr, username, update.CallbackQuery.Data)
 		h.handleCallback(update.CallbackQuery, chatIDStr)
 	}
 

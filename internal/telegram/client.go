@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -82,14 +83,17 @@ func (c *Client) post(method string, payload interface{}) error {
 		bytes.NewBuffer(data),
 	)
 	if err != nil {
+		log.Printf("[TELEGRAM] ✗ %s network error: %v", method, err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		log.Printf("[TELEGRAM] ✗ %s returned %d: %s", method, resp.StatusCode, string(body))
 		return fmt.Errorf("telegram API error: %d %s", resp.StatusCode, string(body))
 	}
 
+	log.Printf("[TELEGRAM] ✓ %s", method)
 	return nil
 }

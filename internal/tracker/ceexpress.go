@@ -3,6 +3,7 @@ package tracker
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
@@ -66,11 +67,15 @@ var shipmentStatusLabels = map[string]string{
 }
 
 func Fetch(code string) (*TrackingResult, error) {
-	ts := time.Now().UnixMilli()
+	start := time.Now()
+	ts := start.UnixMilli()
 	url := fmt.Sprintf("https://cp.cambodianexpress.com/api/public/shipment/track?code=%s&_=%d", code, ts)
+
+	log.Printf("[CE_EXPRESS] → GET track code=%s", code)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
+		log.Printf("[CE_EXPRESS] ✗ request build error for %s: %v", code, err)
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0")
@@ -78,22 +83,28 @@ func Fetch(code string) (*TrackingResult, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		log.Printf("[CE_EXPRESS] ✗ http error for %s: %v (took %s)", code, err, time.Since(start))
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		log.Printf("[CE_EXPRESS] ✗ %s returned %d (took %s)", code, resp.StatusCode, time.Since(start))
 		return nil, fmt.Errorf("api returned status %d", resp.StatusCode)
 	}
 
 	var data ShipmentData
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		log.Printf("[CE_EXPRESS] ✗ %s decode error: %v", code, err)
 		return nil, err
 	}
 
 	if !data.Success || len(data.Data.ShipmentList) == 0 {
+		log.Printf("[CE_EXPRESS] ⚠ %s no data found (took %s)", code, time.Since(start))
 		return nil, fmt.Errorf("no data found for code %s", code)
 	}
+
+	log.Printf("[CE_EXPRESS] ✓ %s status=%s (took %s)", code, data.Data.ShipmentList[0].Shipment.ShipmentStatus, time.Since(start))
 
 	shipment := data.Data.ShipmentList[0].Shipment
 	events := data.Data.ShipmentList[0].FullEventList
