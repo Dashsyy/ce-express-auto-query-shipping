@@ -29,16 +29,23 @@ func SetCacheTTL(seconds int) {
 
 // getCached returns cached result if still fresh, otherwise nil.
 func getCached(code string) *TrackingResult {
+	result, _ := getCachedWithAge(code)
+	return result
+}
+
+// getCachedWithAge returns cached result and its age, or nil if missing/expired.
+func getCachedWithAge(code string) (*TrackingResult, time.Duration) {
 	v, ok := cache.Load(code)
 	if !ok {
-		return nil
+		return nil, 0
 	}
 	entry := v.(cacheEntry)
-	if time.Since(entry.cachedAt) > cacheTTL {
+	age := time.Since(entry.cachedAt)
+	if age > cacheTTL {
 		cache.Delete(code)
-		return nil
+		return nil, 0
 	}
-	return entry.result
+	return entry.result, age
 }
 
 // setCached stores the result with current timestamp.
@@ -82,6 +89,8 @@ type TrackingResult struct {
 	CourierMobile  string
 	Destination    string
 	Weight         float64
+	FromCache      bool
+	CachedAge      time.Duration
 }
 
 type EventInfo struct {
@@ -109,9 +118,13 @@ var shipmentStatusLabels = map[string]string{
 
 func Fetch(code string) (*TrackingResult, error) {
 	// Check cache first
-	if cached := getCached(code); cached != nil {
-		log.Printf("[CE_EXPRESS] ⚡ cache HIT code=%s (no API call)", code)
-		return cached, nil
+	if cached, age := getCachedWithAge(code); cached != nil {
+		log.Printf("[CE_EXPRESS] ⚡ cache HIT code=%s age=%s (no API call)", code, age)
+		// Clone result so we don't mutate the cached object
+		result := *cached
+		result.FromCache = true
+		result.CachedAge = age
+		return &result, nil
 	}
 
 	start := time.Now()

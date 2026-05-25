@@ -68,7 +68,21 @@ func TrackingMessage(code string, result *tracker.TrackingResult, prevState *sta
 		}
 	}
 
+	// Cache indicator (only when served from cache)
+	if result.FromCache {
+		b.WriteString(fmt.Sprintf("\n<i>⚡ cached %s ago</i>", formatAge(result.CachedAge)))
+	}
+
 	return b.String()
+}
+
+// formatAge converts duration to a friendly string like "23s" or "2m"
+func formatAge(d time.Duration) string {
+	s := int(d.Seconds())
+	if s < 60 {
+		return fmt.Sprintf("%ds", s)
+	}
+	return fmt.Sprintf("%dm", s/60)
 }
 
 // statusEmoji returns the emoji for a shipment status code.
@@ -134,11 +148,15 @@ func formatEventTime(raw string) string {
 	return t.Format("Jan 2, 15:04")
 }
 
-// cleanText strips weird CJK brackets and trims whitespace.
+// cleanText strips CJK brackets (replacing with space) and normalizes whitespace.
 func cleanText(s string) string {
-	s = strings.ReplaceAll(s, "【", "")
-	s = strings.ReplaceAll(s, "】", "")
-	s = strings.ReplaceAll(s, "  ", " ")
+	s = strings.ReplaceAll(s, "【", " ")
+	s = strings.ReplaceAll(s, "】", " ")
+	s = strings.ReplaceAll(s, ",", ", ")
+	// Collapse multiple spaces
+	for strings.Contains(s, "  ") {
+		s = strings.ReplaceAll(s, "  ", " ")
+	}
 	return strings.TrimSpace(s)
 }
 
