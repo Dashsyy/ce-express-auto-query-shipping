@@ -12,6 +12,7 @@ type Config struct {
 	MaxCodesPerUser  int
 	MinCheckInterval int
 	BotWebhookURL    string
+	WebhookEnabled   bool
 	Port             string
 	Version          string
 }
@@ -24,9 +25,17 @@ func Load() *Config {
 		MaxCodesPerUser:  getEnvInt("MAX_CODES_PER_USER", 10),
 		MinCheckInterval: getEnvInt("MIN_CHECK_INTERVAL", 300),
 		BotWebhookURL:    getEnv("BOT_WEBHOOK_URL", ""),
+		WebhookEnabled:   getEnvBool("WEBHOOK_ENABLED", false),
 		Port:             getEnv("PORT", "8080"),
 		Version:          "2.1.0",
 	}
+}
+
+func getEnvBool(key string, defaultVal bool) bool {
+	if value, exists := os.LookupEnv(key); exists {
+		return value == "true" || value == "1" || value == "yes"
+	}
+	return defaultVal
 }
 
 func getEnv(key, defaultVal string) string {

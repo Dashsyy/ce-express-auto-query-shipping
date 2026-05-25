@@ -23,18 +23,29 @@ func main() {
 		log.Fatal("TELEGRAM_BOT_TOKEN not set")
 	}
 
-	log.Printf("Bot v%s started — webhook URL: %s", cfg.Version, cfg.BotWebhookURL)
+	log.Printf("Bot v%s started — webhook enabled: %v", cfg.Version, cfg.WebhookEnabled)
 
 	tg := telegram.NewClient(cfg.TelegramBotToken)
 	stateManager := state.NewManager(cfg.StateFile)
 	webhookHandler := handler.NewWebhookHandler(cfg, tg, stateManager)
 
-	// Register webhook with Telegram
-	if cfg.BotWebhookURL != "" {
-		if err := tg.SetWebhook(cfg.BotWebhookURL); err != nil {
-			log.Printf("Warning: failed to set webhook: %v", err)
+	// Webhook kill switch logic
+	if cfg.WebhookEnabled {
+		if cfg.BotWebhookURL == "" {
+			log.Println("⚠️  WEBHOOK_ENABLED=true but BOT_WEBHOOK_URL is empty — skipping webhook registration")
 		} else {
-			log.Printf("Webhook registered: %s", cfg.BotWebhookURL)
+			if err := tg.SetWebhook(cfg.BotWebhookURL); err != nil {
+				log.Printf("Warning: failed to set webhook: %v", err)
+			} else {
+				log.Printf("✅ Webhook registered: %s", cfg.BotWebhookURL)
+			}
+		}
+	} else {
+		// Webhook disabled — clean up any stale webhook from previous deploys
+		if err := tg.DeleteWebhook(); err != nil {
+			log.Printf("Warning: failed to delete webhook: %v", err)
+		} else {
+			log.Println("🔒 Webhook DISABLED — cleared any existing webhook. Set WEBHOOK_ENABLED=true to enable.")
 		}
 	}
 
