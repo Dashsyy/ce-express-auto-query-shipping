@@ -13,6 +13,7 @@ type Config struct {
 	MinCheckInterval int
 	BotWebhookURL    string
 	WebhookEnabled   bool
+	CacheTTL         int
 	Port             string
 	Version          string
 }
@@ -26,6 +27,7 @@ func Load() *Config {
 		MinCheckInterval: getEnvInt("MIN_CHECK_INTERVAL", 300),
 		BotWebhookURL:    getEnv("BOT_WEBHOOK_URL", ""),
 		WebhookEnabled:   getEnvBool("WEBHOOK_ENABLED", false),
+		CacheTTL:         getEnvInt("CACHE_TTL", 60),
 		Port:             getEnv("PORT", "8080"),
 		Version:          "2.1.0",
 	}

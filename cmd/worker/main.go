@@ -52,6 +52,8 @@ func pollAll(stateManager *state.Manager, tg *telegram.Client) {
 		for _, code := range chat.Codes {
 			prev := chat.CodeStates[code]
 
+			// Bypass cache — worker needs fresh data to detect changes
+			tracker.InvalidateCache(code)
 			result, err := tracker.Fetch(code)
 			if err != nil {
 				log.Printf("[%s] fetch error: %v", code, err)

@@ -10,6 +10,7 @@ import (
 	"github.com/dashsyy/ce-tracker/internal/handler"
 	"github.com/dashsyy/ce-tracker/internal/state"
 	"github.com/dashsyy/ce-tracker/internal/telegram"
+	"github.com/dashsyy/ce-tracker/internal/tracker"
 )
 
 func init() {
@@ -23,8 +24,9 @@ func main() {
 		log.Fatal("TELEGRAM_BOT_TOKEN not set")
 	}
 
-	log.Printf("Bot v%s started — webhook enabled: %v", cfg.Version, cfg.WebhookEnabled)
+	log.Printf("Bot v%s started — webhook enabled: %v, cache TTL: %ds", cfg.Version, cfg.WebhookEnabled, cfg.CacheTTL)
 
+	tracker.SetCacheTTL(cfg.CacheTTL)
 	tg := telegram.NewClient(cfg.TelegramBotToken)
 	stateManager := state.NewManager(cfg.StateFile)
 	webhookHandler := handler.NewWebhookHandler(cfg, tg, stateManager)
