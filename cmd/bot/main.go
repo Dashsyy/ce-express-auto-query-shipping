@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 
@@ -15,6 +17,7 @@ import (
 
 func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	log.SetOutput(os.Stdout)
 }
 
 func main() {
@@ -23,6 +26,8 @@ func main() {
 	if cfg.TelegramBotToken == "" {
 		log.Fatal("TELEGRAM_BOT_TOKEN not set")
 	}
+
+	gin.SetMode(gin.ReleaseMode)
 
 	log.Printf("Bot v%s started — webhook enabled: %v, cache TTL: %ds", cfg.Version, cfg.WebhookEnabled, cfg.CacheTTL)
 
@@ -51,8 +56,18 @@ func main() {
 		}
 	}
 
-	// Setup Gin router
-	router := gin.Default()
+	// Setup Gin router with custom logger
+	router := gin.New()
+	router.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
+		return fmt.Sprintf("[GIN] %s | %d | %13v | %s %s\n",
+			param.TimeStamp.Format("2006/01/02 15:04:05"),
+			param.StatusCode,
+			param.Latency,
+			param.Method,
+			param.Path,
+		)
+	}))
+	router.Use(gin.Recovery())
 
 	router.POST("/webhook", webhookHandler.HandleWebhook)
 	router.GET("/health", func(c *gin.Context) {
